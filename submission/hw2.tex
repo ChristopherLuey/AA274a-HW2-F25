@@ -1,0 +1,217 @@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\documentclass [11pt]{article}
+\usepackage{longtable}
+\usepackage{amsmath,float,epsfig,amssymb,graphicx}
+\usepackage{fancyhdr,subfigure}
+\usepackage{epstopdf}
+\usepackage[colorlinks=true, urlcolor=blue]{hyperref}
+\usepackage{titlesec}
+\usepackage{color,soul}
+\setcounter{secnumdepth}{3}
+\usepackage{gensymb}
+\usepackage{pdfpages}
+\usepackage{listings}
+\usepackage{enumitem}
+
+
+%This commands adjust the space left for the margins
+\addtolength{\oddsidemargin}{-1.0in}
+\addtolength{\textwidth}{2.0in}
+\addtolength{\voffset}{-0.75in}
+\addtolength{\headsep}{5pt}
+\addtolength{\textheight}{1.25in}
+\setlength{\headheight}{14pt}
+
+%Author & Project/Homework names
+\newcommand{\authorname}{Student Name}
+\newcommand{\datenumber}{October 16, 2024}
+\newcommand{\assignmentID}{Homework 2}
+\newcommand{\coursename}{Principles of Robot Autonomy I: }
+
+%%%%%%%%%%%%%%%%%% DOCUMENT HEADER & TITLE %%%%%%%%%%%%%%%%%%
+\fancyhead{}
+\fancyhead[C]{\large \coursename \assignmentID \ | \datenumber \ | \authorname}
+
+\begin{document}
+\pagestyle{fancy}
+
+\begin{center}
+    \Large \textbf{\coursename \assignmentID}\\
+    \small \authorname\\
+    \small \datenumber
+\end{center}
+
+%%%%%%%%%%%%%%%% EXAM %%%%%%%%%%%%%%%%%%%%
+
+\section*{Problem 1}
+    \begin{enumerate}[label=(\roman*)]
+        \item \textbf{Transcription to Finite Dimensional Optimization Problem}
+
+        To transcribe this optimal control problem into a finite-dimensional constrained optimization problem, we use direct transcription with discretization. Let's discretize the time interval $[0, t_f]$ into $N$ segments with time step $\Delta t$, where $t_i = i \cdot \Delta t$ for $i = 0, 1, \ldots, N$, and $t_N = t_f$.
+
+        \textbf{Decision Variables:}
+
+        The optimization variables are:
+        \begin{equation}
+        \mathbf{z} = [x_0, y_0, \theta_0, \ldots, x_N, y_N, \theta_N, v_0, \omega_0, \ldots, v_{N-1}, \omega_{N-1}, t_f]
+        \end{equation}
+
+        This gives us $3(N+1) + 2N + 1 = 5N + 4$ decision variables.
+
+        \textbf{Objective Function:}
+
+        The continuous cost functional is discretized using numerical integration (e.g., trapezoidal rule or rectangle rule):
+        \begin{equation}
+        \min_{\mathbf{z}} \quad J = \sum_{i=0}^{N-1} \left(\alpha + v_i^2 + \omega_i^2\right) \Delta t
+        \end{equation}
+
+        where $\Delta t = t_f / N$.
+
+        \textbf{Constraints:}
+
+        \textit{1. Initial Conditions:}
+        \begin{align}
+        x_0 &= 0 \\
+        y_0 &= 0 \\
+        \theta_0 &= \pi/2
+        \end{align}
+
+        \textit{2. Final Conditions:}
+        \begin{align}
+        x_N &= 5 \\
+        y_N &= 5 \\
+        \theta_N &= \pi/2
+        \end{align}
+
+        \textit{3. Dynamics Constraints (using forward Euler integration):}
+
+        For $i = 0, 1, \ldots, N-1$:
+        \begin{align}
+        x_{i+1} &= x_i + v_i \cos(\theta_i) \Delta t \\
+        y_{i+1} &= y_i + v_i \sin(\theta_i) \Delta t \\
+        \theta_{i+1} &= \theta_i + \omega_i \Delta t
+        \end{align}
+
+        \textit{4. Collision Avoidance Constraints:}
+
+        For $i = 0, 1, \ldots, N$:
+        \begin{equation}
+        \sqrt{(x_i - 2.5)^2 + (y_i - 2.5)^2} - 0.4 \geq 0
+        \end{equation}
+
+        where $0.4 = r_{ego} + r_{obstacle} = 0.1 + 0.3$.
+
+        \textbf{Complete Optimization Problem:}
+
+        \begin{align}
+        \min_{\mathbf{z}} \quad & \sum_{i=0}^{N-1} \left(\alpha + v_i^2 + \omega_i^2\right) \frac{t_f}{N} \\
+        \text{subject to} \quad & x_0 = 0, \quad y_0 = 0, \quad \theta_0 = \pi/2 \\
+        & x_N = 5, \quad y_N = 5, \quad \theta_N = \pi/2 \\
+        & x_{i+1} = x_i + v_i \cos(\theta_i) \frac{t_f}{N}, \quad i = 0, \ldots, N-1 \\
+        & y_{i+1} = y_i + v_i \sin(\theta_i) \frac{t_f}{N}, \quad i = 0, \ldots, N-1 \\
+        & \theta_{i+1} = \theta_i + \omega_i \frac{t_f}{N}, \quad i = 0, \ldots, N-1 \\
+        & \sqrt{(x_i - 2.5)^2 + (y_i - 2.5)^2} \geq 0.4, \quad i = 0, \ldots, N \\
+        & t_f > 0
+        \end{align}
+
+        \item \textbf{Implementation Approach}
+
+        The implementation of the trajectory optimization uses the direct transcription method with \texttt{scipy.optimize.minimize}. The key components are:
+
+        \textbf{1. Parameterization:} The trajectory is discretized into $N$ time steps. The decision variables include the state at each time step $(x_i, y_i, \theta_i)$ and controls $(v_i, \omega_i)$, along with the final time $t_f$.
+
+        \textbf{2. Objective Function:} The cost is computed as:
+        \begin{equation}
+        J = \sum_{i=0}^{N-1} \left(\alpha + v_i^2 + \omega_i^2\right) \Delta t
+        \end{equation}
+
+        \textbf{3. Constraint Handling:} Constraints are implemented as:
+        \begin{itemize}
+            \item Equality constraints for boundary conditions (initial and final states)
+            \item Equality constraints for dynamics (discretized using Euler integration)
+            \item Inequality constraints for collision avoidance at each discretization point
+        \end{itemize}
+
+        \textbf{4. Optimization:} The \texttt{scipy.optimize.minimize} function with the SLSQP (Sequential Least Squares Programming) method is used to solve the constrained nonlinear optimization problem. This method handles both equality and inequality constraints efficiently.
+
+        \textbf{5. Initial Guess:} A good initial guess is crucial for convergence. Typically, a straight-line path in configuration space with constant controls provides a reasonable starting point.
+
+        The optimized trajectory successfully navigates from the start to the goal while avoiding the obstacle at $(2.5, 2.5)$ with radius $0.3$.
+
+        [Include trajectory plot here from the notebook]
+
+        \item \textbf{Effect of Different $\alpha$ Values}
+
+        The parameter $\alpha$ in the cost function $J = \int_0^{t_f} (\alpha + v^2 + \omega^2) dt$ balances time optimality versus control effort:
+
+        \textbf{Small $\alpha$ (e.g., $\alpha = 0.1$):}
+        \begin{itemize}
+            \item The optimizer prioritizes minimizing control effort $(v^2 + \omega^2)$ over time
+            \item Results in slower, smoother trajectories with smaller velocities and angular rates
+            \item The robot takes longer to reach the goal but uses less aggressive control actions
+            \item The trajectory tends to follow a more conservative path around the obstacle
+        \end{itemize}
+
+        \textbf{Medium $\alpha$ (e.g., $\alpha = 1.0$):}
+        \begin{itemize}
+            \item Provides a balanced trade-off between time and control effort
+            \item The trajectory completes in moderate time with reasonable control magnitudes
+            \item Represents a practical compromise for real robot systems
+        \end{itemize}
+
+        \textbf{Large $\alpha$ (e.g., $\alpha = 10.0$):}
+        \begin{itemize}
+            \item The optimizer strongly prioritizes minimizing time $t_f$
+            \item Results in faster trajectories with larger control inputs
+            \item The robot reaches the goal quickly but with more aggressive maneuvers
+            \item May lead to higher velocities and sharper turns around the obstacle
+            \item The trajectory becomes closer to minimum-time control
+        \end{itemize}
+
+        \textbf{Summary:} As $\alpha$ increases, the weight on time increases relative to control effort, leading to faster but more aggressive trajectories. Conversely, smaller $\alpha$ values produce slower, smoother paths that conserve energy. The choice of $\alpha$ should reflect the specific application requirements: use larger values when time is critical, and smaller values when smooth, energy-efficient motion is preferred.
+
+    \end{enumerate}
+
+\section*{Problem 2}
+    \begin{enumerate}[label=(\roman*)]
+        \item
+        \item
+        \item
+    \end{enumerate}
+
+\section*{Problem 3}
+    \begin{enumerate}[label=(\roman*)]
+        \item
+        \item
+        \item
+        \item
+    \end{enumerate}
+
+\section*{Problem 4}
+    Note: This problem is not graded but should be completed for section preparation.
+    \begin{enumerate}[label=(\roman*)]
+        \item
+        \item
+    \end{enumerate}
+
+
+
+%%%%%%%%%%%%%%%%%% TEMPLATE FOR CODE SUBMISSION %%%%%%%%%%%%%%%%%%
+\newpage
+\section*{Appendix A: Code Submission Template}
+    \begin{lstlisting}[language=Python]
+        PASTE CODE HERE
+    \end{lstlisting}
+
+%%%%%%%%%%%%%%%%%% TEMPLATE FOR IMAGE SUBMISSION %%%%%%%%%%%%%%%%%%
+% \section*{Appendix B: Image Submission Template}
+%     \begin{figure}[h]
+%         \centering
+%         \includegraphics[width=0.5\textwidth]{figs/example_image.jpg}
+%         \caption{INSERT CAPTION HERE}
+%         \label{fig:placeholder}
+%     \end{figure}
+    
+    
+
+\end{document}
